@@ -18,6 +18,18 @@ contract FundingStudent is Pausable, ReentrancyGuard, Ownable {
         string imageIPFSHash;
         uint256 disbursedBalance;
     }
+    uint8 communityId;
+    struct Community {
+        uint8 id;
+        string name;
+        string description;
+        string imageHash;
+        string location;
+        address[] members;
+        bool ismember;
+    }
+
+    mapping(uint8 => Community) communities;
 
     struct Proposal {
         uint256 proposalId;
@@ -141,7 +153,7 @@ contract FundingStudent is Pausable, ReentrancyGuard, Ownable {
         emit Status(_proposalId, ProposalStatus.Approved);
     }
 
-    function getApprovedProposals() external view returns (Proposal[] memory) {
+    function getApprovedProposals() external view returns (Proposal [] memory) {
         return approvedProposals;
     }
 
@@ -155,12 +167,12 @@ contract FundingStudent is Pausable, ReentrancyGuard, Ownable {
         emit ProposalClosed(_proposalId, ProposalStatus.Closed);
     }
 
-    function donate(uint256 _amount, uint256 _proposalId) external payable {
+    function donate(uint256 _amount, uint256 _proposalId) external {
         require(_amount > 0, "Amount must be greater than zero");
         require(
             approvedProposals[_proposalId].amount >
                 studentMap[approvedProposals[_proposalId].student],
-            "Proposal Amount Reached, Thank you!. Please Consider other Proposals"
+            "Proposal Amount Reached, Thank you!"
         );
         require(
             _nativeToken.balanceOf(msg.sender) >= _amount,
@@ -180,17 +192,15 @@ contract FundingStudent is Pausable, ReentrancyGuard, Ownable {
         emit Donation(msg.sender, usdtAmount, block.timestamp);
     }
 
-    function withdraw(uint256 _amount) external validStudent {
+    function withdraw(uint256 _amount) external validStudent{
+
         require(_amount > 0, "Amount must be greater than zero");
-        require(
-            _nativeToken.balanceOf(address(this)) >= _amount,
-            "Insufficient balance"
-        );
         //update the state variable
-        Proposal storage proposal = proposalByAddress[msg.sender];
+        Student storage student = registeredStudents[msg.sender];
         //withdraw
-        studentMap[proposal.student] -= _amount;
-        _nativeToken.transferFrom(address(this), msg.sender, _amount);
+        require(student.disbursedBalance >= _amount, "Insufficient Balance");
+        student.disbursedBalance -= _amount;
+        _nativeToken.transfer(student.student, _amount);
     }
 
     function disburseFund(uint256 _proposalId) external nonReentrant onlyOwner {
@@ -203,14 +213,18 @@ contract FundingStudent is Pausable, ReentrancyGuard, Ownable {
             !approvedProposals[_proposalId].disbursed,
             "Loan already disbursed"
         );
-        require(studentMap[approvedProposals[_proposalId].student] >= approvedProposals[_proposalId].amount, "Amount not reached yet");
-        
+        require(
+            studentMap[approvedProposals[_proposalId].student] >=
+                approvedProposals[_proposalId].amount,
+            "Amount not reached yet"
+        );
+
         approvedProposals[_proposalId].disbursed = true;
 
         closeProposal(_proposalId);
-        
-        registeredStudents[approvedProposals[_proposalId].student].disbursedBalance += approvedProposals[_proposalId].amount;
 
+        registeredStudents[approvedProposals[_proposalId].student]
+            .disbursedBalance += approvedProposals[_proposalId].amount;
 
         emit Donation(
             approvedProposals[_proposalId].student,
@@ -275,20 +289,20 @@ contract FundingStudent is Pausable, ReentrancyGuard, Ownable {
         //_nftContract.mint(_recipient, _tokenId);
         //_nftContract.setTokenURI(_tokenId, _tokenURI);
     }
+
+    function createCommunity(
+        string calldata _name,
+        string calldata description,
+        string calldata location,
+        string calldata imageHash
+    ) external {
+        communityId++;
+        Community storage community = communities[communityId];
+
+        community.description = description;
+        community.name = _name;
+        community.id = communityId;
+        community.imageHash = imageHash;
+        community.location = location;
+    }
 }
-
-// // Compatible with OpenZeppelin Contracts ^5.0.0
-// pragma solidity ^0.8.20;
-
-// import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-// import "@openzeppelin/contracts/access/Ownable.sol";
-
-// contract FundToken is ERC20, Ownable {
-//     constructor()
-//         ERC20("MyToken", "MTK")
-//         Ownable(msg.sender)
-//     { _mint(msg.sender, 1000000000000000000000000000);
-
-//     }
-
-// }
